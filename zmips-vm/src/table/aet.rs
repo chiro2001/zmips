@@ -1,11 +1,15 @@
+use zmips_opcodes::BF;
 use zmips_opcodes::program::Program;
+use ndarray::Array2;
 
-pub struct AlgebraicExecutionTable<'a> {
-    pub program: &'a Program,
+#[derive(Debug, Clone, Default)]
+pub struct AlgebraicExecutionTable {
+    pub program: Program,
+    pub processor_trace: Array2<BF>,
 }
 
-impl<'a> AlgebraicExecutionTable<'a> {
-    pub fn new(program: &'a Program) -> Self {
-        Self { program }
+impl AlgebraicExecutionTable {
+    pub fn new(program: &Program) -> Self {
+        Self { program: program.clone(), ..Default::default() }
     }
 }

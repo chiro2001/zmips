@@ -7,13 +7,15 @@ use anyhow::Result;
 pub enum InstructionError {
     IOOutOfBoundary,
     ExecuteReturnFailureValue(BF),
+    StepOutOfLimits,
 }
 
 impl Display for InstructionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             InstructionError::ExecuteReturnFailureValue(v) => write!(f, "program return value is not 0: {}", v),
-            InstructionError::IOOutOfBoundary => write!(f, "io pointer out of boundary")
+            InstructionError::IOOutOfBoundary => write!(f, "io pointer out of boundary"),
+            InstructionError::StepOutOfLimits => write!(f, "out of step limits")
         }
     }
 }

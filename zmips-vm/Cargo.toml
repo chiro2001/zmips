@@ -15,3 +15,4 @@ strum = "0.24.1"
 strum_macros = "0.24.1"
 nom = "7.1"
 zmips-opcodes = { path = "../zmips-opcodes" }
+ndarray = "0.15.6"

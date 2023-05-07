@@ -4,7 +4,7 @@ use zmips_opcodes::BF;
 use crate::state::{VMOutput, VMState};
 use crate::table::aet::AlgebraicExecutionTable;
 
-pub fn execute<'a>(program: &'a Program, public_input: &'a [BF], secret_input: &'a [BF]) -> Result<(AlgebraicExecutionTable<'a>, Vec<BF>)> {
+pub fn execute<'a>(program: &'a Program, public_input: &'a [BF], secret_input: &'a [BF]) -> Result<(AlgebraicExecutionTable, Vec<BF>)> {
     let mut aet = AlgebraicExecutionTable::new(&program);
     let mut output;
     let mut state = VMState::new(program.instructions.as_slice());
@@ -28,6 +28,23 @@ mod test {
     fn execute_simple_code() {
         let code = parse(crate::example_codes::SIMPLE_CODE).unwrap();
         let program = Program::new(&to_labelled(&code));
-        if let Ok((aet, stdout)) = execute(&program, &[], &[]) {}
+        if let Ok((aet, stdout)) = execute(&program, &[], &[]) {
+            println!("{:?}", aet);
+            if !stdout.is_empty() {
+                println!("stdout:");
+                for v in stdout {
+                    println!("{}", v);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn execute_infinity_code() {
+        let code = parse(crate::example_codes::INFINITY_CODE).unwrap();
+        let program = Program::new(&to_labelled(&code));
+        if let Err(e) = execute(&program, &[], &[]) {
+            println!("pass test, expected err is {}", e);
+        }
     }
 }

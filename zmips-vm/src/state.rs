@@ -4,7 +4,7 @@ use num_traits::Zero;
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
 use zmips_opcodes::regs::RegA;
-use crate::errors::InstructionError::{ExecuteReturnFailureValue, IOOutOfBoundary};
+use crate::errors::InstructionError::{ExecuteReturnFailureValue, IOOutOfBoundary, StepOutOfLimits};
 use crate::errors::vm_err;
 use crate::state::VMOutput::{FinalAnswer, PrinterWrite};
 
@@ -42,6 +42,8 @@ pub enum VMOutput {
     PrinterWrite(BF),
 }
 
+pub const VM_STEPS_MAX: usize = 100;
+
 impl<'a> VMState<'a> {
     pub fn new(program: &'a [Instruction]) -> Self {
         Self {
@@ -63,6 +65,9 @@ impl<'a> VMState<'a> {
     }
     pub fn step(&mut self, public_input: &[BF], secret_input: &[BF]) -> Result<Option<VMOutput>> {
         let mut output: Option<VMOutput> = None;
+        if self.step_count > VM_STEPS_MAX {
+            return vm_err(StepOutOfLimits);
+        }
         self.step_count += 1;
         let instruction = self.instruction_fetch()?;
         println!("fetch instruction: {}", instruction);
