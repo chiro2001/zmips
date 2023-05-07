@@ -31,7 +31,7 @@ pub fn execute<'a>(program: &'a Program, public_input: &'a [u64], secret_input: 
             stdout.push(bf);
         }
         let processor_trace = state.dump();
-        // aet.processor_trace.push_row(processor_trace.view())?;
+        aet.processor_trace.push_row(processor_trace.view())?;
     }
     Ok((aet, stdout))
 }

@@ -105,7 +105,7 @@ impl<'a> VMState<'a> {
         }
         self.step_count += 1;
         let instruction = self.instruction_fetch()?;
-        println!("fetch instruction: {}", instruction);
+        // println!("fetch instruction: {}", instruction);
         match instruction {
             Instruction::BEQ((r1, r2, addr)) => {
                 self.pc_jump_else_step(self.reg_read(r1).value() == self.reg_read(r2).value(), addr);
