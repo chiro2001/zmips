@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::ops::Neg;
 use anyhow::Result;
 use ndarray::Array1;
 use num_traits::{One, Zero};
+use twenty_first::shared_math::traits::Inverse;
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
 use zmips_opcodes::regs::{Reg, RegA};
@@ -214,179 +216,142 @@ impl<'a> VMState<'a> {
                 self.pc = self.pc + BF::one();
             }
             Instruction::ADD((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = *r2 + BF::from(imm);
+                        self.reg_write(r1, self.reg_read(r2) + BF::from(imm));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] = *r2 + BF::from(a);
+                        self.reg_write(r1, self.reg_read(r2) + self.reg_read(a));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::SUB((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = *r2 - BF::from(imm);
+                        self.reg_write(r1, self.reg_read(r2) - BF::from(imm));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] = *r2 - BF::from(a);
+                        self.reg_write(r1, self.reg_read(r2) - self.reg_read(a));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::MULT((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = *r2 * BF::from(imm);
+                        self.reg_write(r1, self.reg_read(r2) * BF::from(imm));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] = *r2 * BF::from(a);
+                        self.reg_write(r1, self.reg_read(r2) * self.reg_read(a));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::DIV((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = *r2 / BF::from(imm);
+                        self.reg_write(r1, self.reg_read(r2) / BF::from(imm));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] = *r2 / BF::from(a);
+                        self.reg_write(r1, self.reg_read(r2) / self.reg_read(a));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::MOD((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        // FIXME: this is may not the correct way to do it...
-                        self.registers[v1] = BF::from(r2.value() % (imm as u64));
+                        // FIXME
+                        // self.reg_write(r1, self.reg_read(r2) % BF::from(imm));
+                        self.reg_write(r1, self.reg_read(r2) - ((self.reg_read(r2) / BF::from(imm)) * BF::from(imm)));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() % BF::from(a).value());
+                        // self.reg_write(r1, self.reg_read(r2) % self.reg_read(a));
+                        self.reg_write(r1, self.reg_read(r2) - ((self.reg_read(r2) / self.reg_read(a)) * self.reg_read(a)));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::MOVE((r, a)) => {
-                let v1: usize = r.into();
                 match a {
-                    RegA::Imm(imm) => self.registers[v1] = BF::from(imm),
-                    RegA::RegName(r2) => {
-                        let v2: usize = r2.into();
-                        self.registers[v1] = self.registers[v2];
-                    }
+                    RegA::Imm(imm) => self.reg_write(r, BF::from(imm)),
+                    RegA::RegName(r2) => self.reg_write(r, self.reg_read(r2)),
                 }
                 self.pc = self.pc + BF::one();
             }
-            Instruction::LA((r, a)) => {
-                let v1: usize = r.into();
-                self.registers[v1] = a;
+            Instruction::LA((r, addr)) => {
+                self.reg_write(r, addr);
                 self.pc = self.pc + BF::one();
             }
             Instruction::AND((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = BF::from(r2.value() & imm as u64);
+                        // FIXME
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() & imm as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() & BF::from(a).value());
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() & self.reg_read(a).value()));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::XOR((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = BF::from(r2.value() ^ imm as u64);
+                        // FIXME
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() ^ imm as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() ^ BF::from(a).value());
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() ^ self.reg_read(a).value()));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::OR((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = BF::from(r2.value() | imm as u64);
+                        // FIXME
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() | imm as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() ^ BF::from(a).value());
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() | self.reg_read(a).value()));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::NOT((r1, _r2, a)) => {
-                let v1: usize = r1.into();
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] =
-                            BF::from(!(imm as u64) & (usize::MAX) as u64);
+                        self.reg_write(r1, BF::from(!imm));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] = BF::from(
-                            BF::from(a).value() & (usize::MAX) as u64,
-                        );
+                        // FIXME: right?
+                        self.reg_write(r1, self.reg_read(a).inverse());
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::SLL((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = BF::from(r2.value() << imm as u64);
+                        // FIXME
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() << imm as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() << BF::from(a).value());
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() << self.reg_read(a).value()));
                     }
                 }
                 self.pc = self.pc + BF::one();
             }
             Instruction::SRL((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v1] = BF::from(r2.value() >> imm as u64);
+                        // FIXME
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() >> imm as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v1] =
-                            BF::from(r2.value() >> BF::from(a).value());
+                        self.reg_write(r1, BF::from(self.reg_read(r2).value() >> self.reg_read(a).value()));
                     }
                 }
                 self.pc = self.pc + BF::one();
@@ -440,20 +405,15 @@ impl<'a> VMState<'a> {
                 }
             }
             Instruction::PRINT(r) => {
-                let v1: usize = r.into();
-                let r = self.registers[v1];
-                output = Some(PrinterWrite(r));
+                output = Some(PrinterWrite(self.reg_read(r)));
                 self.pc = self.pc + BF::one();
             }
             Instruction::EXIT(r) => {
-                let v1: usize = r.into();
-                self.pc = self.pc + BF::one();
-                let r = &self.registers[v1];
                 self.halting = true;
-                if r.is_zero() {
-                    output = Some(FinalAnswer(*r));
+                if self.reg_read(r).is_zero() {
+                    output = Some(FinalAnswer(self.reg_read(r)));
                 } else {
-                    return vm_err(ExecuteReturnFailureValue(*r));
+                    return vm_err(ExecuteReturnFailureValue(self.reg_read(r)));
                 }
             }
             Instruction::ANSWER(r) => {
