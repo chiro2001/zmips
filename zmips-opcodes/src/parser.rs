@@ -470,7 +470,7 @@ fn comment_or_whitespace1<'a>(s: &'a str) -> ParseResult<&'a str> {
 
 /// Parse one comment (not including the linebreak)
 fn comment1(s: &str) -> ParseResult<()> {
-    let (s, _) = tag("//")(s)?;
+    let (s, _) = many1(alt((tag("//"), tag("#"))))(s)?;
     let (s, _) = take_while(|c| !is_linebreak(c))(s)?;
     Ok((s, ()))
 }

@@ -79,4 +79,18 @@ mod test {
             }
         }
     }
+
+    #[test]
+    fn execute_speck128_exp_code() {
+        let code = parse(crate::example_codes::SPECK128_EXP).unwrap();
+        let program = Program::new(&to_labelled(&code));
+        let (aet, stdout) = execute(&program, &[], crate::example_codes::SPEC128_EXP_AUX_TAPE).unwrap();
+        println!("{:?}", aet);
+        if !stdout.is_empty() {
+            println!("stdout:");
+            for v in stdout {
+                println!("{}", v);
+            }
+        }
+    }
 }

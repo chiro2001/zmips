@@ -70,3 +70,60 @@ pub const SPEC128_AUX_TAPE: &'static [u64] = &[
     14212543182292431461,
     2421186661733812543
 ];
+
+pub const SPECK128_EXP: &'static str = "
+move $t4, 31
+# read key
+secread $t3
+secread $t0
+# read pt
+secread $t10
+secread $t11
+__L1__:
+# encrypt
+    srl $t5, $t11, 8
+    sll $t6, $t11, 56
+    or $t6, $t5, $t6
+    add $t11, $t6, $t10
+    xor $t11, $t11, $t3
+    srl $t5, $t10, 61
+    sll $t6, $t10, 3
+    or $t6, $t5, $t6
+    xor $t10, $t6, $t11
+# expand
+    srl $t5, $t0, 8
+    sll $t6, $t0, 56
+    or $t0, $t5, $t6
+    add $t0, $t0, $t3
+    xor $t0, $t0, $t9
+    srl $t6, $t3, 61
+    sll $t5, $t3, 3
+    or $t3, $t5, $t6
+    xor $t3, $t3, $t0
+
+
+    add $t9, $t9, 1
+bgt $t4, $t9, __L1__
+
+srl $t5, $t11, 8
+sll $t6, $t11, 56
+or $t6, $t5, $t6
+add $t11, $t6, $t10
+xor $t11, $t11, $t3
+srl $t5, $t10, 61
+sll $t6, $t10, 3
+or $t6, $t5, $t6
+xor $t10, $t6, $t11
+
+print $t10
+print $t11
+answer $t11
+";
+
+pub const SPEC128_EXP_AUX_TAPE: &'static [u64] = &[
+    506097522914230528,
+    1084818905618843912,
+    8388271400802151712,
+    7809653424151160096,
+];
+
