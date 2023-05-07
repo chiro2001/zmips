@@ -1,9 +1,7 @@
-use std::any::Any;
 use std::fmt::Display;
 use std::io::Cursor;
 
 use anyhow::Result;
-use itertools::Itertools;
 use twenty_first::shared_math::b_field_element::BFieldElement;
 use twenty_first::util_types::algebraic_hasher::Hashable;
 

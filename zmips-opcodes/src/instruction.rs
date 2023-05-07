@@ -13,17 +13,10 @@ use twenty_first::shared_math::b_field_element::BFieldElement;
 use twenty_first::shared_math::b_field_element::BFIELD_ZERO;
 
 use crate::regs::{Reg, RegA};
-use triton_program::AbstractInstruction;
 use AnInstruction::*;
 
 /// An `Instruction` has `call` addresses encoded as absolute integers.
 pub type Instruction = AnInstruction<BFieldElement, Reg, RegA>;
-
-impl AbstractInstruction for Instruction {
-    fn clone_(&self) -> Box<dyn AbstractInstruction> {
-        Box::new(*self) as Box<dyn AbstractInstruction>
-    }
-}
 
 pub const ALL_INSTRUCTIONS: [Instruction; Instruction::COUNT] = all_instructions_without_args();
 pub const ALL_INSTRUCTION_NAMES: [&str; Instruction::COUNT] = all_instruction_names();
