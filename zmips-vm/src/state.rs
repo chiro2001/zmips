@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::ops::Neg;
 use anyhow::Result;
 use ndarray::Array1;
 use num_traits::{One, Zero};
