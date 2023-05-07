@@ -27,8 +27,11 @@ pub fn execute<'a>(program: &'a Program, public_input: &'a [u64], secret_input: 
     let secret_input = tape_data_conv64(secret_input);
     while !state.halting {
         output = state.step(public_input.as_slice(), secret_input.as_slice())?;
-        if let Some(VMOutput::PrinterWrite(bf)) = output {
-            stdout.push(bf);
+        if let Some(output) = output {
+            match output {
+                VMOutput::FinalAnswer(ans) => aet.ans = Some(ans),
+                VMOutput::PrinterWrite(bf) => stdout.push(bf),
+            }
         }
         let processor_trace = state.dump();
         aet.processor_trace.push_row(processor_trace.view())?;

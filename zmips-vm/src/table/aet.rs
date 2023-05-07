@@ -6,11 +6,16 @@ use ndarray::Array2;
 pub struct AlgebraicExecutionTable {
     pub program: Program,
     pub processor_trace: Array2<BF>,
+    pub ans: Option<BF>,
 }
 
 impl Default for AlgebraicExecutionTable {
     fn default() -> Self {
-        Self { program: Default::default(), processor_trace: Array2::default([0, crate::table::processor::PROCESS_TABLE_SZ]) }
+        Self {
+            program: Default::default(),
+            processor_trace: Array2::default([0, crate::table::processor::PROCESS_TABLE_SZ]),
+            ans: Default::default(),
+        }
     }
 }
 
