@@ -8,7 +8,7 @@ use crate::errors::InstructionError::{ExecuteReturnFailureValue, IOOutOfBoundary
 use crate::errors::vm_err;
 use crate::state::VMOutput::{FinalAnswer, PrinterWrite};
 
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct VMState<'a> {
     pub program: &'a [Instruction],
     pub ram: HashMap<BF, BF>,
@@ -19,6 +19,22 @@ pub struct VMState<'a> {
     pub public_input_pointer: usize,
     pub secret_input_pointer: usize,
     pub halting: bool,
+}
+
+impl<'a> Default for VMState<'a> {
+    fn default() -> Self {
+        Self {
+            program: &[],
+            ram: Default::default(),
+            registers: vec![Default::default(); 32],
+            jump_stack: vec![],
+            pc: 0,
+            step_count: 0,
+            public_input_pointer: 0,
+            secret_input_pointer: 0,
+            halting: false,
+        }
+    }
 }
 
 pub enum VMOutput {
@@ -48,7 +64,9 @@ impl<'a> VMState<'a> {
     pub fn step(&mut self, public_input: &[BF], secret_input: &[BF]) -> Result<Option<VMOutput>> {
         let mut output: Option<VMOutput> = None;
         self.step_count += 1;
-        match self.instruction_fetch()? {
+        let instruction = self.instruction_fetch()?;
+        println!("fetch instruction: {}", instruction);
+        match instruction {
             Instruction::BEQ((r1, r2, addr)) => {
                 let v1: usize = r1.into();
                 let v2: usize = r2.into();
@@ -457,6 +475,7 @@ impl<'a> VMState<'a> {
                 let v1: usize = r.into();
                 self.pc += 1;
                 let r = &self.registers[v1];
+                self.halting = true;
                 if r.is_zero() {
                     output = Some(FinalAnswer(*r));
                 } else {
@@ -468,6 +487,7 @@ impl<'a> VMState<'a> {
                 let r = self.registers[v1];
                 output = Some(FinalAnswer(r));
                 self.pc += 1;
+                self.halting = true;
             }
         }
         Ok(output)
