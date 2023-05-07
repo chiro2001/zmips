@@ -43,7 +43,7 @@ pub enum VMOutput {
     PrinterWrite(BF),
 }
 
-pub const VM_STEPS_MAX: usize = 100;
+pub const VM_STEPS_MAX: usize = 100000;
 
 impl<'a> VMState<'a> {
     pub fn new(program: &'a [Instruction]) -> Self {
@@ -60,9 +60,9 @@ impl<'a> VMState<'a> {
         // 4. secret_input_pointer
         // 5-37. registers
         r[0] = BF::from(self.pc);
-        r[1] = BF::from(self.step_count);
-        r[2] = BF::from(self.public_input_pointer);
-        r[3] = BF::from(self.secret_input_pointer);
+        r[1] = BF::from(self.step_count as u32);
+        r[2] = BF::from(self.public_input_pointer as u32);
+        r[3] = BF::from(self.secret_input_pointer as u32);
         let mut i = 5 - 1;
         for v in self.registers.iter() {
             r[i] = *v;

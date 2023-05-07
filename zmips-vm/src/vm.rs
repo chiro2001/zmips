@@ -4,18 +4,34 @@ use zmips_opcodes::BF;
 use crate::state::{VMOutput, VMState};
 use crate::table::aet::AlgebraicExecutionTable;
 
-pub fn execute<'a>(program: &'a Program, public_input: &'a [BF], secret_input: &'a [BF]) -> Result<(AlgebraicExecutionTable, Vec<BF>)> {
+pub fn tape_data_conv(input: &[u32]) -> Vec<BF> {
+    input.iter().map(|x| BF::from(*x)).collect()
+}
+
+pub fn tape_data_conv64(input: &[u64]) -> Vec<BF> {
+    let mut v = vec![];
+    // input.iter().map(|x| BF::from(*x)).collect()
+    for i in input {
+        v.push(BF::from((i & 0xffffffff) as u32));
+        v.push(BF::from(((i >> 32) & 0xffffffff) as u32));
+    }
+    v
+}
+
+pub fn execute<'a>(program: &'a Program, public_input: &'a [u64], secret_input: &[u64]) -> Result<(AlgebraicExecutionTable, Vec<BF>)> {
     let mut aet = AlgebraicExecutionTable::new(&program);
     let mut output;
     let mut state = VMState::new(program.instructions.as_slice());
     let mut stdout = vec![];
+    let public_input = tape_data_conv64(public_input);
+    let secret_input = tape_data_conv64(secret_input);
     while !state.halting {
-        output = state.step(public_input, secret_input)?;
+        output = state.step(public_input.as_slice(), secret_input.as_slice())?;
         if let Some(VMOutput::PrinterWrite(bf)) = output {
             stdout.push(bf);
         }
         let processor_trace = state.dump();
-        aet.processor_trace.push_row(processor_trace.view())?;
+        // aet.processor_trace.push_row(processor_trace.view())?;
     }
     Ok((aet, stdout))
 }
@@ -47,6 +63,20 @@ mod test {
         let program = Program::new(&to_labelled(&code));
         if let Err(e) = execute(&program, &[], &[]) {
             println!("pass test, expected err is {}", e);
+        }
+    }
+
+    #[test]
+    fn execute_speck128_code() {
+        let code = parse(crate::example_codes::SPECK128).unwrap();
+        let program = Program::new(&to_labelled(&code));
+        let (aet, stdout) = execute(&program, &[], crate::example_codes::SPEC128_AUX_TAPE).unwrap();
+        println!("{:?}", aet);
+        if !stdout.is_empty() {
+            println!("stdout:");
+            for v in stdout {
+                println!("{}", v);
+            }
         }
     }
 }
