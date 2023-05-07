@@ -14,6 +14,8 @@ pub fn execute<'a>(program: &'a Program, public_input: &'a [BF], secret_input: &
         if let Some(VMOutput::PrinterWrite(bf)) = output {
             stdout.push(bf);
         }
+        let processor_trace = state.dump();
+        aet.processor_trace.push_row(processor_trace.view())?;
     }
     Ok((aet, stdout))
 }

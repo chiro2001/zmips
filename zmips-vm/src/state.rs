@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use anyhow::Result;
+use ndarray::Array1;
 use num_traits::Zero;
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
@@ -50,6 +51,24 @@ impl<'a> VMState<'a> {
             program,
             ..Default::default()
         }
+    }
+    pub fn dump(&self) -> Array1<BF> {
+        let mut r = Array1::zeros(crate::table::processor::PROCESS_TABLE_SZ);
+        // 1. pc
+        // 2. step count
+        // 3. public_input_pointer
+        // 4. secret_input_pointer
+        // 5-37. registers
+        r[0] = BF::from(self.pc);
+        r[1] = BF::from(self.step_count);
+        r[2] = BF::from(self.public_input_pointer);
+        r[3] = BF::from(self.secret_input_pointer);
+        let mut i = 5 - 1;
+        for v in self.registers.iter() {
+            r[i] = *v;
+            i += 1;
+        }
+        r
     }
     pub fn instruction_fetch(&self) -> Result<Instruction> {
         self.program.get(self.pc as usize).ok_or(anyhow::anyhow!("PC out of bounds")).cloned()
