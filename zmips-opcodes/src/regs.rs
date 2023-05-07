@@ -36,8 +36,42 @@ pub enum Reg {
     Sp,
     Fp,
     Ra,
+    // extra regs: 16 extra temporal regs and 16 extra saved regs
+    S8,
+    S9,
+    S10,
+    S11,
+    S12,
+    S13,
+    S14,
+    S15,
+    S16,
+    S17,
+    S18,
+    S19,
+    S20,
+    S21,
+    S22,
+    S23,
+    T10,
+    T11,
+    T12,
+    T13,
+    T14,
+    T15,
+    T16,
+    T17,
+    T18,
+    T19,
+    T20,
+    T21,
+    T22,
+    T23,
+    T24,
+    T25,
 }
-pub const REGS: [Reg; 32] = [
+
+pub const REGS: [Reg; 64] = [
     Reg::Zero,
     Reg::At,
     Reg::V0,
@@ -70,6 +104,38 @@ pub const REGS: [Reg; 32] = [
     Reg::Sp,
     Reg::Fp,
     Reg::Ra,
+    Reg::S8,
+    Reg::S9,
+    Reg::S10,
+    Reg::S11,
+    Reg::S12,
+    Reg::S13,
+    Reg::S14,
+    Reg::S15,
+    Reg::S16,
+    Reg::S17,
+    Reg::S18,
+    Reg::S19,
+    Reg::S20,
+    Reg::S21,
+    Reg::S22,
+    Reg::S23,
+    Reg::T10,
+    Reg::T11,
+    Reg::T12,
+    Reg::T13,
+    Reg::T14,
+    Reg::T15,
+    Reg::T16,
+    Reg::T17,
+    Reg::T18,
+    Reg::T19,
+    Reg::T20,
+    Reg::T21,
+    Reg::T22,
+    Reg::T23,
+    Reg::T24,
+    Reg::T25,
 ];
 
 impl From<&str> for Reg {
@@ -115,40 +181,78 @@ impl From<&str> for Reg {
             "sp" => Reg::Sp,
             "fp" => Reg::Fp,
             "ra" => Reg::Ra,
+            "s8" => Reg::S8,
+            "s9" => Reg::S9,
+            "s10" => Reg::S10,
+            "s11" => Reg::S11,
+            "s12" => Reg::S12,
+            "s13" => Reg::S13,
+            "s14" => Reg::S14,
+            "s15" => Reg::S15,
+            "s16" => Reg::S16,
+            "s17" => Reg::S17,
+            "s18" => Reg::S18,
+            "s19" => Reg::S19,
+            "s20" => Reg::S20,
+            "s21" => Reg::S21,
+            "s22" => Reg::S22,
+            "s23" => Reg::S23,
+            "t10" => Reg::T10,
+            "t11" => Reg::T11,
+            "t12" => Reg::T12,
+            "t13" => Reg::T13,
+            "t14" => Reg::T14,
+            "t15" => Reg::T15,
+            "t16" => Reg::T16,
+            "t17" => Reg::T17,
+            "t18" => Reg::T18,
+            "t19" => Reg::T19,
+            "t20" => Reg::T20,
+            "t21" => Reg::T21,
+            "t22" => Reg::T22,
+            "t23" => Reg::T23,
+            "t24" => Reg::T24,
+            "t25" => Reg::T25,
             _ => match value.parse::<usize>() {
-                Ok(n) if n < 32 => REGS[n],
+                Ok(n) if n < 64 => REGS[n],
                 _ => panic!("Unknown register: {}", value),
             },
         }
     }
 }
+
 impl From<&String> for Reg {
     fn from(value: &String) -> Self {
         value.as_str().into()
     }
 }
+
 impl From<&Reg> for String {
     fn from(value: &Reg) -> Self {
         format!("{:?}", value)
     }
 }
+
 impl Display for Reg {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let s: String = self.into();
         write!(f, "{}", s)
     }
 }
+
 impl From<Reg> for u32 {
     fn from(value: Reg) -> Self {
         (&value).into()
     }
 }
+
 impl From<Reg> for usize {
     fn from(value: Reg) -> Self {
         let v: u32 = (&value).into();
         v as usize
     }
 }
+
 impl From<&Reg> for u32 {
     fn from(value: &Reg) -> Self {
         match value {
@@ -184,15 +288,49 @@ impl From<&Reg> for u32 {
             Reg::Sp => 29,
             Reg::Fp => 30,
             Reg::Ra => 31,
+            Reg::S8 => 32,
+            Reg::S9 => 33,
+            Reg::S10 => 34,
+            Reg::S11 => 35,
+            Reg::S12 => 36,
+            Reg::S13 => 37,
+            Reg::S14 => 38,
+            Reg::S15 => 39,
+            Reg::S16 => 40,
+            Reg::S17 => 41,
+            Reg::S18 => 42,
+            Reg::S19 => 43,
+            Reg::S20 => 44,
+            Reg::S21 => 45,
+            Reg::S22 => 46,
+            Reg::S23 => 47,
+            Reg::T10 => 48,
+            Reg::T11 => 49,
+            Reg::T12 => 50,
+            Reg::T13 => 51,
+            Reg::T14 => 52,
+            Reg::T15 => 53,
+            Reg::T16 => 54,
+            Reg::T17 => 55,
+            Reg::T18 => 56,
+            Reg::T19 => 57,
+            Reg::T20 => 58,
+            Reg::T21 => 59,
+            Reg::T22 => 60,
+            Reg::T23 => 61,
+            Reg::T24 => 62,
+            Reg::T25 => 63,
         }
     }
 }
+
 impl From<Reg> for BF {
     fn from(value: Reg) -> Self {
         let n: u32 = value.into();
         n.into()
     }
 }
+
 impl From<&Reg> for BF {
     fn from(value: &Reg) -> Self {
         let n: u32 = value.into();
@@ -211,6 +349,7 @@ impl Default for RegA {
         RegA::Imm(0)
     }
 }
+
 impl From<&String> for RegA {
     fn from(value: &String) -> Self {
         if let Some(value) = value.strip_prefix("0x") {
@@ -231,6 +370,7 @@ impl From<&String> for RegA {
         }
     }
 }
+
 impl From<&RegA> for BF {
     fn from(value: &RegA) -> Self {
         match value {
@@ -239,6 +379,7 @@ impl From<&RegA> for BF {
         }
     }
 }
+
 impl Display for RegA {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match &self {

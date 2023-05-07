@@ -27,7 +27,7 @@ impl<'a> Default for VMState<'a> {
         Self {
             program: &[],
             ram: Default::default(),
-            registers: vec![Default::default(); 32],
+            registers: vec![Default::default(); 64],
             jump_trace: vec![],
             pc: 0,
             step_count: 0,
@@ -58,7 +58,7 @@ impl<'a> VMState<'a> {
         // 2. step count
         // 3. public_input_pointer
         // 4. secret_input_pointer
-        // 5-37. registers
+        // 5-69. registers
         r[0] = BF::from(self.pc);
         r[1] = BF::from(self.step_count as u32);
         r[2] = BF::from(self.public_input_pointer as u32);
