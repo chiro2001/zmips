@@ -4,7 +4,7 @@ use num_traits::Zero;
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
 use zmips_opcodes::regs::RegA;
-use crate::errors::InstructionError::ExecuteReturnFailureValue;
+use crate::errors::InstructionError::{ExecuteReturnFailureValue, IOOutOfBoundary};
 use crate::errors::vm_err;
 use crate::state::VMOutput::{FinalAnswer, PrinterWrite};
 
@@ -16,6 +16,8 @@ pub struct VMState<'a> {
     pub jump_stack: Vec<(BF, BF)>,
     pub pc: usize,
     pub step_count: usize,
+    pub public_input_pointer: usize,
+    pub secret_input_pointer: usize,
     pub halting: bool,
 }
 
@@ -43,7 +45,7 @@ impl<'a> VMState<'a> {
     fn memory_set(&mut self, mem_addr: BF, data: BF) {
         self.ram.insert(mem_addr, data);
     }
-    pub fn step(&mut self, public_input: &mut Vec<BF>, secret_input: &mut Vec<BF>) -> Result<Option<VMOutput>> {
+    pub fn step(&mut self, public_input: &[BF], secret_input: &[BF]) -> Result<Option<VMOutput>> {
         let mut output: Option<VMOutput> = None;
         self.step_count += 1;
         match self.instruction_fetch()? {
@@ -393,17 +395,58 @@ impl<'a> VMState<'a> {
             }
             Instruction::PUBREAD(r) => {
                 let v1: usize = r.into();
-                self.registers[v1] = public_input.remove(0);
+                if let Some(data) = public_input.get(self.public_input_pointer) {
+                    self.registers[v1] = *data;
+                } else {
+                    return vm_err(IOOutOfBoundary);
+                }
+                self.public_input_pointer += 1;
                 self.pc += 1;
             }
             Instruction::SECREAD(r) => {
                 let v1: usize = r.into();
-                self.registers[v1] = secret_input.remove(0);
+                if let Some(data) = secret_input.get(self.secret_input_pointer) {
+                    self.registers[v1] = *data;
+                } else {
+                    return vm_err(IOOutOfBoundary);
+                }
+                self.secret_input_pointer += 1;
                 self.pc += 1;
             }
-            // TODO
-            Instruction::PUBSEEK(_) => {}
-            Instruction::SECSEEK(_) => {}
+            Instruction::PUBSEEK((r, offset)) => {
+                let v1: usize = r.into();
+                match offset {
+                    RegA::Imm(imm) => {
+                        self.public_input_pointer = imm as usize;
+                    }
+                    RegA::RegName(source) => {
+                        let v: usize = source.into();
+                        self.public_input_pointer = self.registers[v].value() as usize;
+                    }
+                }
+                if let Some(data) = public_input.get(self.public_input_pointer) {
+                    self.registers[v1] = *data;
+                } else {
+                    return vm_err(IOOutOfBoundary);
+                }
+            }
+            Instruction::SECSEEK((r, offset)) => {
+                let v1: usize = r.into();
+                match offset {
+                    RegA::Imm(imm) => {
+                        self.secret_input_pointer = imm as usize;
+                    }
+                    RegA::RegName(source) => {
+                        let v: usize = source.into();
+                        self.secret_input_pointer = self.registers[v].value() as usize;
+                    }
+                }
+                if let Some(data) = secret_input.get(self.public_input_pointer) {
+                    self.registers[v1] = *data;
+                } else {
+                    return vm_err(IOOutOfBoundary);
+                }
+            }
             Instruction::PRINT(r) => {
                 let v1: usize = r.into();
                 let r = self.registers[v1];

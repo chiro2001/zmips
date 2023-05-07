@@ -5,13 +5,15 @@ use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub enum InstructionError {
-    ExecuteReturnFailureValue(BF)
+    IOOutOfBoundary,
+    ExecuteReturnFailureValue(BF),
 }
 
 impl Display for InstructionError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             InstructionError::ExecuteReturnFailureValue(v) => write!(f, "program return value is not 0: {}", v),
+            InstructionError::IOOutOfBoundary => write!(f, "io pointer out of boundary")
         }
     }
 }
