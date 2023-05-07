@@ -2,8 +2,8 @@ use std::fmt::Display;
 use std::io::Cursor;
 
 use anyhow::Result;
-use twenty_first::shared_math::b_field_element::BFieldElement;
 use twenty_first::util_types::algebraic_hasher::Hashable;
+use crate::BF;
 
 use crate::instruction::convert_labels;
 use crate::instruction::Instruction;
@@ -32,7 +32,7 @@ impl Display for Program {
 }
 
 impl Hashable for Program {
-    fn to_sequence(&self) -> Vec<BFieldElement> {
+    fn to_sequence(&self) -> Vec<BF> {
         self.to_bwords()
     }
 }
@@ -88,12 +88,12 @@ impl Program {
             .map_err(|err| anyhow::anyhow!("{}", err))
     }
 
-    /// Convert a `Program` to a `Vec<BFieldElement>`.
+    /// Convert a `Program` to a `Vec<BF>`.
     ///
     /// Every single-word instruction is converted to a single word.
     ///
     /// Every double-word instruction is converted to two words.
-    pub fn to_bwords(&self) -> Vec<BFieldElement> {
+    pub fn to_bwords(&self) -> Vec<BF> {
         self.clone()
             .into_iter()
             .flat_map(|instruction| {
@@ -107,8 +107,8 @@ impl Program {
             .collect()
     }
 
-    /// The total length of the program as `BFieldElement`s. Double-word instructions contribute
-    /// two `BFieldElement`s.
+    /// The total length of the program as `BF`s. Double-word instructions contribute
+    /// two `BF`s.
     pub fn len_bwords(&self) -> usize {
         self.instructions.len()
     }

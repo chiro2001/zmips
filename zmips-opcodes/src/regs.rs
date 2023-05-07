@@ -1,5 +1,5 @@
 use std::fmt::{Display, Formatter};
-use twenty_first::shared_math::b_field_element::BFieldElement;
+use crate::BF;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum Reg {
@@ -187,13 +187,13 @@ impl From<&Reg> for u32 {
         }
     }
 }
-impl From<Reg> for BFieldElement {
+impl From<Reg> for BF {
     fn from(value: Reg) -> Self {
         let n: u32 = value.into();
         n.into()
     }
 }
-impl From<&Reg> for BFieldElement {
+impl From<&Reg> for BF {
     fn from(value: &Reg) -> Self {
         let n: u32 = value.into();
         n.into()
@@ -231,7 +231,7 @@ impl From<&String> for RegA {
         }
     }
 }
-impl From<&RegA> for BFieldElement {
+impl From<&RegA> for BF {
     fn from(value: &RegA) -> Self {
         match value {
             RegA::Imm(imm) => (*imm).into(),

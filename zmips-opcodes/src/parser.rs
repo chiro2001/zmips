@@ -532,9 +532,9 @@ mod parser_tests {
     use rand::distributions::WeightedIndex;
     use rand::prelude::*;
     use rand::Rng;
-    use twenty_first::shared_math::b_field_element::BFieldElement;
 
     use LabelledInstruction::*;
+    use crate::BF;
 
     use crate::program::Program;
 
@@ -650,7 +650,7 @@ mod parser_tests {
             }
 
             "push" => {
-                let max: i128 = BFieldElement::MAX as i128;
+                let max: i128 = BF::MAX as i128;
                 let arg: i128 = rng.gen_range(-max..max);
                 vec!["push".to_string(), format!("{arg}")]
             }

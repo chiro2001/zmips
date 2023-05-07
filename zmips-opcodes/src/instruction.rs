@@ -9,14 +9,14 @@ use strum::IntoEnumIterator;
 use strum_macros::Display as DisplayMacro;
 use strum_macros::EnumCount as EnumCountMacro;
 use strum_macros::EnumIter;
-use twenty_first::shared_math::b_field_element::BFieldElement;
 use twenty_first::shared_math::b_field_element::BFIELD_ZERO;
 
 use crate::regs::{Reg, RegA};
 use AnInstruction::*;
+use crate::BF;
 
 /// An `Instruction` has `call` addresses encoded as absolute integers.
-pub type Instruction = AnInstruction<BFieldElement, Reg, RegA>;
+pub type Instruction = AnInstruction<BF, Reg, RegA>;
 
 pub const ALL_INSTRUCTIONS: [Instruction; Instruction::COUNT] = all_instructions_without_args();
 pub const ALL_INSTRUCTION_NAMES: [&str; Instruction::COUNT] = all_instruction_names();
@@ -97,7 +97,7 @@ pub enum AnInstruction<L: PartialEq + Default, R: PartialEq + Default, A: Partia
 }
 
 impl<Dest: PartialEq + Default, R: PartialEq + Default, I: PartialEq + Default>
-    AnInstruction<Dest, R, I>
+AnInstruction<Dest, R, I>
 {
     // /// Drop the specific argument in favor of a default one.
     // pub fn strip(&self) -> Self {
@@ -181,7 +181,7 @@ impl<Dest: PartialEq + Default, R: PartialEq + Default, I: PartialEq + Default>
         }
     }
 
-    pub fn opcode_b(&self) -> BFieldElement {
+    pub fn opcode_b(&self) -> BF {
         self.opcode().into()
     }
 
@@ -194,7 +194,7 @@ impl<Dest: PartialEq + Default, R: PartialEq + Default, I: PartialEq + Default>
     }
 
     // /// Get the i'th instruction bit
-    // pub fn ib(&self, arg: Ord8) -> BFieldElement {
+    // pub fn ib(&self, arg: Ord8) -> BF {
     //     let opcode = self.opcode();
     //     let bit_number: usize = arg.into();
     //
@@ -207,9 +207,9 @@ impl<Dest: PartialEq + Default> AnInstruction<Dest, String, String> {
         &self,
         f: F,
     ) -> AnInstruction<NewDest, Reg, RegA>
-    where
-        F: Fn(&Dest) -> NewDest,
-        Dest: Clone,
+        where
+            F: Fn(&Dest) -> NewDest,
+            Dest: Clone,
     {
         match self {
             BEQ((r1, r2, addr)) => BEQ((r1.into(), r2.into(), f(addr))),
@@ -250,10 +250,10 @@ impl<Dest: PartialEq + Default> AnInstruction<Dest, String, String> {
 }
 
 impl<
-        Dest: Display + PartialEq + Default,
-        R: Display + PartialEq + Default + Clone,
-        I: Display + PartialEq + Default + Clone,
-    > Display for AnInstruction<Dest, R, I>
+    Dest: Display + PartialEq + Default,
+    R: Display + PartialEq + Default + Clone,
+    I: Display + PartialEq + Default + Clone,
+> Display for AnInstruction<Dest, R, I>
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())?;
@@ -293,13 +293,13 @@ impl<
 }
 
 impl Instruction {
-    pub fn args(&self) -> Vec<BFieldElement> {
+    pub fn args(&self) -> Vec<BF> {
         match self {
-            BEQ((r1, r2, addr)) => vec![BFieldElement::from(r1), BFieldElement::from(r2), *addr],
-            BNE((r1, r2, addr)) => vec![BFieldElement::from(r1), BFieldElement::from(r2), *addr],
-            BLT((r1, r2, addr)) => vec![BFieldElement::from(r1), BFieldElement::from(r2), *addr],
-            BLE((r1, r2, addr)) => vec![BFieldElement::from(r1), BFieldElement::from(r2), *addr],
-            BGT((r1, r2, addr)) => vec![BFieldElement::from(r1), BFieldElement::from(r2), *addr],
+            BEQ((r1, r2, addr)) => vec![BF::from(r1), BF::from(r2), *addr],
+            BNE((r1, r2, addr)) => vec![BF::from(r1), BF::from(r2), *addr],
+            BLT((r1, r2, addr)) => vec![BF::from(r1), BF::from(r2), *addr],
+            BLE((r1, r2, addr)) => vec![BF::from(r1), BF::from(r2), *addr],
+            BGT((r1, r2, addr)) => vec![BF::from(r1), BF::from(r2), *addr],
             J(addr) => vec![*addr],
             _ => vec![],
         }
@@ -369,11 +369,11 @@ fn convert_labels_helper(
         LabelledInstruction::Label(_) => vec![],
 
         LabelledInstruction::Instruction(instr) => {
-            let unlabelled_instruction: AnInstruction<BFieldElement, Reg, RegA> = instr
+            let unlabelled_instruction: AnInstruction<BF, Reg, RegA> = instr
                 .map_call_address(|label_name| {
                     let label_not_found = format!("Label not found: {label_name}");
                     let absolute_address = label_map.get(label_name).expect(&label_not_found);
-                    BFieldElement::new(*absolute_address as u64)
+                    BF::new(*absolute_address as u64)
                 });
 
             vec![unlabelled_instruction]
@@ -381,14 +381,13 @@ fn convert_labels_helper(
     }
 }
 
-const DEFAULT_BRANCH_INFO: (Reg, Reg, BFieldElement) = (Reg::Zero, Reg::Zero, BFIELD_ZERO);
+const DEFAULT_BRANCH_INFO: (Reg, Reg, BF) = (Reg::Zero, Reg::Zero, BFIELD_ZERO);
 const DEFAULT_LOAD_SAVE: (Reg, RegA, Reg) = (Reg::Zero, RegA::RegName(Reg::Zero), Reg::Zero);
 const DEFAULT_INFO3: (Reg, Reg, RegA) = (Reg::Zero, Reg::Zero, RegA::Imm(0));
 const DEFAULT_INFO2: (Reg, RegA) = (Reg::Zero, RegA::Imm(0));
 const DEFAULT_REG_R: Reg = Reg::Zero;
 
-const fn all_instructions_without_args(
-) -> [AnInstruction<BFieldElement, Reg, RegA>; Instruction::COUNT] {
+const fn all_instructions_without_args() -> [AnInstruction<BF, Reg, RegA>; Instruction::COUNT] {
     [
         BEQ(DEFAULT_BRANCH_INFO),
         BNE(DEFAULT_BRANCH_INFO),
@@ -469,7 +468,7 @@ mod instruction_tests {
     // use num_traits::Zero;
     // use strum::EnumCount;
     // use strum::IntoEnumIterator;
-    // use twenty_first::shared_math::b_field_element::BFieldElement;
+    // use twenty_first::shared_math::b_field_element::BF;
 
     use crate::instruction::ALL_INSTRUCTIONS;
     use crate::program::Program;
@@ -481,7 +480,7 @@ mod instruction_tests {
     // fn opcode_test() {
     //     // test for duplicates
     //     let mut opcodes = vec![];
-    //     for instruction in AnInstruction::<BFieldElement, String>::iter() {
+    //     for instruction in AnInstruction::<BF, String>::iter() {
     //         assert!(
     //             !opcodes.contains(&instruction.opcode()),
     //             "Have different instructions with same opcode."
@@ -493,19 +492,19 @@ mod instruction_tests {
     //         println!(
     //             "opcode {} exists: {}",
     //             opc,
-    //             AnInstruction::<BFieldElement, String>::try_from(*opc).unwrap()
+    //             AnInstruction::<BF, String>::try_from(*opc).unwrap()
     //         );
     //     }
     //
     //     // assert size of list corresponds to number of opcodes
     //     assert_eq!(
-    //         AnInstruction::<BFieldElement, String>::COUNT,
+    //         AnInstruction::<BF, String>::COUNT,
     //         opcodes.len(),
     //         "Mismatch in number of instructions!"
     //     );
     //
     //     // test for width
-    //     let max_opcode: u32 = AnInstruction::<BFieldElement, String>::iter()
+    //     let max_opcode: u32 = AnInstruction::<BF, String>::iter()
     //         .map(|inst| inst.opcode())
     //         .max()
     //         .unwrap();
@@ -520,7 +519,7 @@ mod instruction_tests {
     //     );
     //
     //     // assert consistency
-    //     for instruction in AnInstruction::<BFieldElement, String>::iter() {
+    //     for instruction in AnInstruction::<BF, String>::iter() {
     //         assert!(
     //             instruction == instruction.opcode().try_into().unwrap(),
     //             "instruction to opcode map must be consistent"
@@ -539,8 +538,8 @@ mod instruction_tests {
     //     let program = Program::from_code(code).unwrap();
     //     let instructions = program.into_iter().collect_vec();
     //     let expected = vec![
-    //         Push(BFieldElement::one()),
-    //         Push(BFieldElement::one()),
+    //         Push(BF::one()),
+    //         Push(BF::one()),
     //         ADD,
     //         Pop,
     //     ];
