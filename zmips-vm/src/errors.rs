@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter};
 use zmips_opcodes::BF;
+use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub enum InstructionError {
