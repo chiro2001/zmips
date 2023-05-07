@@ -3,7 +3,7 @@ use anyhow::Result;
 use num_traits::Zero;
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
-use zmips_opcodes::regs::RegA;
+use zmips_opcodes::regs::{Reg, RegA};
 use crate::errors::InstructionError::{ExecuteReturnFailureValue, IOOutOfBoundary, StepOutOfLimits};
 use crate::errors::vm_err;
 use crate::state::VMOutput::{FinalAnswer, PrinterWrite};
@@ -13,8 +13,8 @@ pub struct VMState<'a> {
     pub program: &'a [Instruction],
     pub ram: HashMap<BF, BF>,
     pub registers: Vec<BF>,
-    pub jump_stack: Vec<(BF, BF)>,
-    pub pc: usize,
+    pub jump_trace: Vec<(BF, BF)>,
+    pub pc: u32,
     pub step_count: usize,
     pub public_input_pointer: usize,
     pub secret_input_pointer: usize,
@@ -27,7 +27,7 @@ impl<'a> Default for VMState<'a> {
             program: &[],
             ram: Default::default(),
             registers: vec![Default::default(); 32],
-            jump_stack: vec![],
+            jump_trace: vec![],
             pc: 0,
             step_count: 0,
             public_input_pointer: 0,
@@ -52,7 +52,7 @@ impl<'a> VMState<'a> {
         }
     }
     pub fn instruction_fetch(&self) -> Result<Instruction> {
-        self.program.get(self.pc).ok_or(anyhow::anyhow!("PC out of bounds")).cloned()
+        self.program.get(self.pc as usize).ok_or(anyhow::anyhow!("PC out of bounds")).cloned()
     }
     fn memory_get(&self, mem_addr: &BF) -> BF {
         self.ram
@@ -62,6 +62,22 @@ impl<'a> VMState<'a> {
     }
     fn memory_set(&mut self, mem_addr: BF, data: BF) {
         self.ram.insert(mem_addr, data);
+    }
+    fn reg_read(&self, r: Reg) -> BF {
+        let v: usize = r.into();
+        self.registers[v]
+    }
+    fn reg_write(&mut self, r: Reg, data: BF) {
+        let v: usize = r.into();
+        self.registers[v] = data;
+    }
+    fn pc_jump_else_step(&mut self, cond: bool, addr: BF) {
+        self.pc = if cond {
+            self.jump_trace.push((BF::from(self.pc), addr));
+            addr.value() as u32
+        } else {
+            self.pc + 1
+        };
     }
     pub fn step(&mut self, public_input: &[BF], secret_input: &[BF]) -> Result<Option<VMOutput>> {
         let mut output: Option<VMOutput> = None;
@@ -73,133 +89,84 @@ impl<'a> VMState<'a> {
         println!("fetch instruction: {}", instruction);
         match instruction {
             Instruction::BEQ((r1, r2, addr)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
-                self.pc = if r1.value() == r2.value() {
-                    addr.value() as usize
-                } else {
-                    self.pc + 1
-                };
+                self.pc_jump_else_step(self.reg_read(r1).value() == self.reg_read(r2).value(), addr);
             }
             Instruction::BNE((r1, r2, addr)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
-                self.pc = if r1.value() != r2.value() {
-                    addr.value() as usize
-                } else {
-                    self.pc + 1
-                };
+                self.pc_jump_else_step(self.reg_read(r1).value() != self.reg_read(r2).value(), addr);
             }
             Instruction::BLT((r1, r2, addr)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
-                self.pc = if r1.value() < r2.value() {
-                    addr.value() as usize
-                } else {
-                    self.pc + 1
-                };
+                self.pc_jump_else_step(self.reg_read(r1).value() <= self.reg_read(r2).value(), addr);
             }
             Instruction::BLE((r1, r2, addr)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
-                self.pc = if r1.value() <= r2.value() {
-                    addr.value() as usize
-                } else {
-                    self.pc + 1
-                };
+                self.pc_jump_else_step(self.reg_read(r1).value() <= self.reg_read(r2).value(), addr);
             }
             Instruction::BGT((r1, r2, addr)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
-                self.pc = if r1.value() > r2.value() {
-                    addr.value() as usize
-                } else {
-                    self.pc + 1
-                };
+                self.pc_jump_else_step(self.reg_read(r1).value() > self.reg_read(r2).value(), addr);
             }
             Instruction::SEQ((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
+                let r1 = self.reg_read(r1);
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v2] =
-                            BF::new((r1.value() == imm as u64) as u64);
+                        self.reg_write(r2, BF::new((r1.value() == imm as u64) as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v2] = BF::new(
+                        self.reg_write(r2, BF::new(
                             (r1.value() == BF::from(a).value()) as u64,
-                        );
+                        ));
                     }
                 }
                 self.pc += 1;
             }
             Instruction::SNE((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
+                let r1 = self.reg_read(r1);
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v2] =
-                            BF::new((r1.value() != imm as u64) as u64);
+                        self.reg_write(r2, BF::new((r1.value() != imm as u64) as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v2] = BF::new(
+                        self.reg_write(r2, BF::new(
                             (r1.value() != BF::from(a).value()) as u64,
-                        );
+                        ));
                     }
                 }
                 self.pc += 1;
             }
             Instruction::SLT((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
+                let r1 = self.reg_read(r1);
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v2] =
-                            BF::new((r1.value() < imm as u64) as u64);
+                        self.reg_write(r2, BF::new((r1.value() < imm as u64) as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v2] = BF::new(
+                        self.reg_write(r2, BF::new(
                             (r1.value() < BF::from(a).value()) as u64,
-                        );
+                        ));
                     }
                 }
                 self.pc += 1;
             }
             Instruction::SLE((r1, r2, a)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
+                let r1 = self.reg_read(r1);
                 match a {
                     RegA::Imm(imm) => {
-                        self.registers[v2] =
-                            BF::new((r1.value() <= imm as u64) as u64);
+                        self.reg_write(r2, BF::new((r1.value() <= imm as u64) as u64));
                     }
                     RegA::RegName(a) => {
-                        self.registers[v2] = BF::new(
+                        self.reg_write(r2, BF::new(
                             (r1.value() <= BF::from(a).value()) as u64,
-                        );
+                        ));
                     }
                 }
                 self.pc += 1;
             }
             Instruction::J(addr) => {
-                self.pc = addr.value() as usize;
+                self.jump_trace.push((BF::from(self.pc), addr));
+                self.pc = addr.value() as u32;
             }
             Instruction::JR(r) => {
-                self.pc = BF::from(r).value() as usize;
+                let addr = self.reg_read(r);
+                self.jump_trace.push((BF::from(self.pc), addr));
+                self.pc = addr.value() as u32;
             }
             Instruction::LW((r1, a, r2)) => {
                 let v1: usize = r1.into();
