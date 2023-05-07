@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use anyhow::Result;
 use ndarray::Array1;
-use num_traits::Zero;
+use num_traits::{One, Zero};
 use zmips_opcodes::BF;
 use zmips_opcodes::instruction::Instruction;
 use zmips_opcodes::regs::{Reg, RegA};
@@ -15,10 +15,10 @@ pub struct VMState<'a> {
     pub ram: HashMap<BF, BF>,
     pub registers: Vec<BF>,
     pub jump_trace: Vec<(BF, BF)>,
-    pub pc: u32,
-    pub step_count: usize,
-    pub public_input_pointer: usize,
-    pub secret_input_pointer: usize,
+    pub pc: BF,
+    pub step_count: BF,
+    pub public_input_pointer: BF,
+    pub secret_input_pointer: BF,
     pub halting: bool,
 }
 
@@ -29,10 +29,10 @@ impl<'a> Default for VMState<'a> {
             ram: Default::default(),
             registers: vec![Default::default(); 64],
             jump_trace: vec![],
-            pc: 0,
-            step_count: 0,
-            public_input_pointer: 0,
-            secret_input_pointer: 0,
+            pc: Default::default(),
+            step_count: Default::default(),
+            public_input_pointer: Default::default(),
+            secret_input_pointer: Default::default(),
             halting: false,
         }
     }
@@ -43,7 +43,7 @@ pub enum VMOutput {
     PrinterWrite(BF),
 }
 
-pub const VM_STEPS_MAX: usize = 100000;
+pub const VM_STEPS_MAX: u64 = 100000;
 
 impl<'a> VMState<'a> {
     pub fn new(program: &'a [Instruction]) -> Self {
@@ -59,10 +59,10 @@ impl<'a> VMState<'a> {
         // 3. public_input_pointer
         // 4. secret_input_pointer
         // 5-69. registers
-        r[0] = BF::from(self.pc);
-        r[1] = BF::from(self.step_count as u32);
-        r[2] = BF::from(self.public_input_pointer as u32);
-        r[3] = BF::from(self.secret_input_pointer as u32);
+        r[0] = self.pc;
+        r[1] = self.step_count;
+        r[2] = self.public_input_pointer;
+        r[3] = self.secret_input_pointer;
         let mut i = 5 - 1;
         for v in self.registers.iter() {
             r[i] = *v;
@@ -71,7 +71,7 @@ impl<'a> VMState<'a> {
         r
     }
     pub fn instruction_fetch(&self) -> Result<Instruction> {
-        self.program.get(self.pc as usize).ok_or(anyhow::anyhow!("PC out of bounds")).cloned()
+        self.program.get(self.pc.value() as usize).ok_or(anyhow::anyhow!("PC out of bounds")).cloned()
     }
     fn memory_get(&self, mem_addr: &BF) -> BF {
         self.ram
@@ -92,18 +92,18 @@ impl<'a> VMState<'a> {
     }
     fn pc_jump_else_step(&mut self, cond: bool, addr: BF) {
         self.pc = if cond {
-            self.jump_trace.push((BF::from(self.pc), addr));
-            addr.value() as u32
+            self.jump_trace.push((self.pc, addr));
+            addr
         } else {
-            self.pc + 1
+            self.pc + BF::one()
         };
     }
     pub fn step(&mut self, public_input: &[BF], secret_input: &[BF]) -> Result<Option<VMOutput>> {
         let mut output: Option<VMOutput> = None;
-        if self.step_count > VM_STEPS_MAX {
+        if self.step_count.value() > VM_STEPS_MAX {
             return vm_err(StepOutOfLimits);
         }
-        self.step_count += 1;
+        self.step_count = self.step_count + BF::one();
         let instruction = self.instruction_fetch()?;
         // println!("fetch instruction: {}", instruction);
         match instruction {
@@ -134,7 +134,7 @@ impl<'a> VMState<'a> {
                         ));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SNE((r1, r2, a)) => {
                 let r1 = self.reg_read(r1);
@@ -148,7 +148,7 @@ impl<'a> VMState<'a> {
                         ));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SLT((r1, r2, a)) => {
                 let r1 = self.reg_read(r1);
@@ -162,7 +162,7 @@ impl<'a> VMState<'a> {
                         ));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SLE((r1, r2, a)) => {
                 let r1 = self.reg_read(r1);
@@ -176,53 +176,42 @@ impl<'a> VMState<'a> {
                         ));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::J(addr) => {
                 self.jump_trace.push((BF::from(self.pc), addr));
-                self.pc = addr.value() as u32;
+                self.pc = addr;
             }
             Instruction::JR(r) => {
                 let addr = self.reg_read(r);
                 self.jump_trace.push((BF::from(self.pc), addr));
-                self.pc = addr.value() as u32;
+                self.pc = addr;
             }
             Instruction::LW((r1, a, r2)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        let addr = BF::from((imm as u64 + r2.value()) as u64);
-                        self.registers[v1] = self.memory_get(&addr);
+                        let addr = BF::from(imm) + self.reg_read(r2);
+                        self.reg_write(r1, self.memory_get(&addr));
                     }
                     RegA::RegName(a) => {
-                        let addr = BF::from(
-                            (BF::from(a).value() + r2.value()) as u64,
-                        );
-                        self.registers[v1] = self.memory_get(&addr);
+                        let addr = self.reg_read(r2) + self.reg_read(a);
+                        self.reg_write(r1, self.memory_get(&addr));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SW((r1, a, r2)) => {
-                let v1: usize = r1.into();
-                let v2: usize = r2.into();
-                let r1: &BF = &self.registers[v1];
-                let r2: &BF = &self.registers[v2];
                 match a {
                     RegA::Imm(imm) => {
-                        let addr = BF::new((imm as u64 + r2.value()) as u64);
-                        self.memory_set(addr, *r1);
+                        let addr = BF::from(imm) + self.reg_read(r2);
+                        self.memory_set(addr, self.reg_read(r1));
                     }
                     RegA::RegName(a) => {
-                        let addr = BF::new(
-                            (BF::from(a).value() + r2.value()) as u64,
-                        );
-                        self.memory_set(addr, *r1);
+                        let addr = self.reg_read(r2) + self.reg_read(a);
+                        self.memory_set(addr, self.reg_read(r1));
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::ADD((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -236,7 +225,7 @@ impl<'a> VMState<'a> {
                         self.registers[v1] = *r2 + BF::from(a);
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SUB((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -250,7 +239,7 @@ impl<'a> VMState<'a> {
                         self.registers[v1] = *r2 - BF::from(a);
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::MULT((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -264,7 +253,7 @@ impl<'a> VMState<'a> {
                         self.registers[v1] = *r2 * BF::from(a);
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::DIV((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -278,7 +267,7 @@ impl<'a> VMState<'a> {
                         self.registers[v1] = *r2 / BF::from(a);
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::MOD((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -294,7 +283,7 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() % BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::MOVE((r, a)) => {
                 let v1: usize = r.into();
@@ -305,12 +294,12 @@ impl<'a> VMState<'a> {
                         self.registers[v1] = self.registers[v2];
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::LA((r, a)) => {
                 let v1: usize = r.into();
                 self.registers[v1] = a;
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::AND((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -325,7 +314,7 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() & BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::XOR((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -340,7 +329,7 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() ^ BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::OR((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -355,7 +344,7 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() ^ BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::NOT((r1, _r2, a)) => {
                 let v1: usize = r1.into();
@@ -370,7 +359,7 @@ impl<'a> VMState<'a> {
                         );
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SLL((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -385,7 +374,7 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() << BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::SRL((r1, r2, a)) => {
                 let v1: usize = r1.into();
@@ -400,58 +389,52 @@ impl<'a> VMState<'a> {
                             BF::from(r2.value() >> BF::from(a).value());
                     }
                 }
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::PUBREAD(r) => {
-                let v1: usize = r.into();
-                if let Some(data) = public_input.get(self.public_input_pointer) {
-                    self.registers[v1] = *data;
+                if let Some(data) = public_input.get(self.public_input_pointer.value() as usize) {
+                    self.reg_write(r, *data);
                 } else {
                     return vm_err(IOOutOfBoundary);
                 }
-                self.public_input_pointer += 1;
-                self.pc += 1;
+                self.public_input_pointer = self.public_input_pointer + BF::one();
+                self.pc = self.pc + BF::one();
             }
             Instruction::SECREAD(r) => {
-                let v1: usize = r.into();
-                if let Some(data) = secret_input.get(self.secret_input_pointer) {
-                    self.registers[v1] = *data;
+                if let Some(data) = secret_input.get(self.secret_input_pointer.value() as usize) {
+                    self.reg_write(r, *data);
                 } else {
                     return vm_err(IOOutOfBoundary);
                 }
-                self.secret_input_pointer += 1;
-                self.pc += 1;
+                self.secret_input_pointer = self.secret_input_pointer + BF::one();
+                self.pc = self.pc + BF::one();
             }
             Instruction::PUBSEEK((r, offset)) => {
-                let v1: usize = r.into();
                 match offset {
                     RegA::Imm(imm) => {
-                        self.public_input_pointer = imm as usize;
+                        self.public_input_pointer = BF::from(imm);
                     }
                     RegA::RegName(source) => {
-                        let v: usize = source.into();
-                        self.public_input_pointer = self.registers[v].value() as usize;
+                        self.public_input_pointer = self.reg_read(source);
                     }
                 }
-                if let Some(data) = public_input.get(self.public_input_pointer) {
-                    self.registers[v1] = *data;
+                if let Some(data) = public_input.get(self.public_input_pointer.value() as usize) {
+                    self.reg_write(r, *data);
                 } else {
                     return vm_err(IOOutOfBoundary);
                 }
             }
             Instruction::SECSEEK((r, offset)) => {
-                let v1: usize = r.into();
                 match offset {
                     RegA::Imm(imm) => {
-                        self.secret_input_pointer = imm as usize;
+                        self.secret_input_pointer = BF::from(imm);
                     }
                     RegA::RegName(source) => {
-                        let v: usize = source.into();
-                        self.secret_input_pointer = self.registers[v].value() as usize;
+                        self.secret_input_pointer = self.reg_read(source);
                     }
                 }
-                if let Some(data) = secret_input.get(self.public_input_pointer) {
-                    self.registers[v1] = *data;
+                if let Some(data) = secret_input.get(self.public_input_pointer.value() as usize) {
+                    self.reg_write(r, *data);
                 } else {
                     return vm_err(IOOutOfBoundary);
                 }
@@ -460,11 +443,11 @@ impl<'a> VMState<'a> {
                 let v1: usize = r.into();
                 let r = self.registers[v1];
                 output = Some(PrinterWrite(r));
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
             }
             Instruction::EXIT(r) => {
                 let v1: usize = r.into();
-                self.pc += 1;
+                self.pc = self.pc + BF::one();
                 let r = &self.registers[v1];
                 self.halting = true;
                 if r.is_zero() {
@@ -474,10 +457,8 @@ impl<'a> VMState<'a> {
                 }
             }
             Instruction::ANSWER(r) => {
-                let v1: usize = r.into();
-                let r = self.registers[v1];
-                output = Some(FinalAnswer(r));
-                self.pc += 1;
+                output = Some(FinalAnswer(self.reg_read(r)));
+                self.pc = self.pc + BF::one();
                 self.halting = true;
             }
         }
